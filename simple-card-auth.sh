@@ -11,8 +11,7 @@ SUBJECT_DN_FILE=subject-dn.tmp
 SERIAL_FILE=serial.tmp
 TMP_FILE=temporary.tmp
 
-STRICT_CHECK=1
-
+STRICT_CHECK=0
 KEY_ID=4
 
 cleanup() {
@@ -47,7 +46,7 @@ pkcs15-tool --no-prompt --read-certificate $KEY_ID -o $CERT_FILE 2> /dev/null ||
 
 # Verify the certificate
 #openssl verify [-CApath directory] [-CAfile file] [-purpose purpose] [-untrusted file] [-help] [-issuer_checks] [-verbose] [-] [certificates]
-cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient | tee $TMP_FILE || die
+cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TMP_FILE || die
 
 [ $STRICT_CHECK = 1 ] && [ "`cat $TMP_FILE`" '!=' "stdin: OK" ] && die
 
