@@ -1,7 +1,7 @@
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <stdio.h>
-
+#include <stdint.h>
 
 
 int main(int argc, char * argv[])

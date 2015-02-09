@@ -133,3 +133,22 @@ Attestations are identified by the SHA-256 hash of the JSON part only.
 
 JSON can be parsed in shell scripts using:
 http://stedolan.github.io/jq/
+
+## RPI Installation ##
+
+apt-get install libusb-dev libusb++-0.1-4c2apt-get install libccid
+apt-get install pcscd
+apt-get install libpcsclite1
+apt-get install libpcsclite-dev
+apt-get install pcsc-tools
+apt-get install libpcsc-perl
+
+sudo modprobe -r pn533
+sudo modprobe -r nfc
+
+sudo apt-get install libssl-dev
+sudo apt-get install libreadline-dev
+
+sudo apt-get install coolkey pcscd pcsc-tools pkg-config libpam-pkcs11 opensc libengine-pkcs11-openssl
+
+

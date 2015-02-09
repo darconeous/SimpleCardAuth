@@ -15,6 +15,7 @@ CACHE_DIR=`pwd`/card-cache
 
 STRICT_CHECK=0
 KEY_ID=4
+RANDOM=/dev/urandom
 STDERR=/dev/null
 #STDERR=/dev/stderr
 
@@ -49,8 +50,6 @@ cache_lookup() {
 }
 
 die() {
-#	echo ""
-#	echo "ACCESS DENIED."
 	cleanup
 	exit 1
 }
@@ -72,12 +71,11 @@ cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TM
 
 [ $STRICT_CHECK = 1 ] && [ "`cat $TMP_FILE`" '!=' "stdin: OK" ] && die
 
-
 # Extract the public key
 openssl x509 -pubkey -noout -in $CERT_FILE > $PUB_KEY_FILE || die
 
 # Calculate a challenge
-dd if=/dev/random of=$CHAL_FILE bs=32 count=1 2> $STDERR || die
+dd if=$RANDOM of=$CHAL_FILE bs=32 count=1 2> $STDERR || die
 
 # Calculate the hash of the challenge
 openssl sha -sha256 -binary < $CHAL_FILE > $CHALHASH_FILE || die
@@ -98,9 +96,8 @@ openssl dgst -sha256 -verify $PUB_KEY_FILE -signature $SIG_FILE $CHAL_FILE 2>&1 
 # Print out the subject name
 openssl x509 -in $CERT_FILE -nameopt RFC2253 -noout -subject | sed 's:^[^ ]* ::' |  tee $SUBJECT_DN_FILE || die
 
+# Stuff was successful, so cache the cert so we don't have to read it again.
 cache_cert
 
-#echo ""
-#echo "ACCESS GRANTED."
 cleanup
 exit 0
