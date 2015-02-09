@@ -1,188 +1,135 @@
+# Simple PKI Physical Access Control #
 
+LDAP-based physical access control requires a sort of "cryptographic
+group". Normal LDAP user groups have no cryptographic assurances that
+the given users are actually authorized to be in that group aside from
+whatever security measures are already in place to ensure that the
+directory is not tampered with by unauthorized persons.
 
-voria.net security architecture
-===============================
+Each group would have it's own private key (and presumably a
+certificate for that key). Provable group membership can be
+accomplished with by signing "access attestations". These attestations
+specify:
 
+ *  The DN of the user(or subgroup) in the group
+ *  The start-date that membership is granted
+ *  the expiration date after which membership has ended.
+ *  Additional access rules, like:
+     *  "Only valid every other thursday starting on the 5th of feb,
+        2015\."
+     *  "Only valid between the hours of 9am and 5pm"
 
-## VPS Services ##
+Multiple such attestations can be added, allowing for exceptions. For
+example, if the cleaning service calls up and says that they can't
+make it on wednesday but can make it on thursday, you can add another
+access attestation good only for that day(and update the previous
+attestation to start the wednesday after)
 
-Services are CoreOS containers.
-
-*.cluster.voria.net
-
-*.sandbox.voria.net
-
-Each coreos node has it's own certificate for it's own FQDN. Peer-to-peer communication is authenticated using these certificates.
-
-* ns.voria.net - DNS Master
-* ldap.voria.net - Domain LDAP server
-* sql.deepdarc.com - MySQL server for www.deepdarc.com
-* mail.deepdarc.com - Mail server for deepdarc.com
-* www.deepdarc.com - darcness server
-* etc.voria.net
-* etc.testing.voria.net
-
-
-
-Specific containers:
-
-* mysql
-* wordpress ?
-* bind
-  * somejedi/docker-bind9
-  * sameersbn/bind
-  * kampka/bind ?
-* imap
-  * mailgun/vulcand ?
-* Reverse proxy
-  * Nginx
-
-
-
-
-
-#cloud-config
-
-hostname: coreos0
-ssh_authorized_keys:
-  - ssh-rsa AAAA...
-coreos:
-  units:
-    - name: etcd.service
-      command: start
-    - name: fleet.service
-      command: start
-  etcd:
-    name: coreos0
-    discovery: https://discovery.etcd.io/<token>
-
-In order to get the discovery token, visit https://discovery.etcd.io/new and you will receive a URL including your token. Paste the whole thing into your cloud-config file.
-
-The API is easy to use. From a CoreOS machine, you can simply use curl to set and retrieve a key from etcd:
-
-Set a key message with value Hello world:
-
-curl -L http://127.0.0.1:4001/v1/keys/message -d value="Hello world"
-Read the value of message back:
-
-curl -L http://127.0.0.1:4001/v1/keys/message
-
-
-
-
-
-So...
-
-Services like MySQL or IMAP need to persistently store relatively large amounts of data. This data needs to be bootstrapped and then backed up regularly. So, for the MySQL.deepdarc.com server, initialization requires fetching the database from a backup (if it exists) before starting. Once started, it must periodically refresh that backup.
-
-The same can go for IMAP except that IMAP can start up pretty much immediately and start fetching mail in the background.
-
-IMAP synchronization via RSYNC...?
-
-
-
-
-
-#cloud-config
-
-users:
-  - name: elroy
-    coreos-ssh-import-github: elroy
-
-
-
-
-
-
-
-
-
-
-
-
--------------
-
-
-LDAP-based physical access control requires a sort of "cryptographic group". Normal LDAP user groups have no cryptographic assurances that the given users are actually authorized to be in that group aside from whatever security measures are already in place to ensure that the directory is not tampered with by unauthorized persons.
-
-Each group would have it's own private key (and presumably a certificate for that key). Provable group membership can be accomplished with by signing "access attestations". These attestations specify:
-
-* The DN of the user(or subgroup) in the group
-* The start-date that membership is granted
-* the expiration date after which membership has ended.
-* Additional access rules, like:
-   * "Only valid every other thursday starting on the 5th of feb, 2015."
-   * "Only valid between the hours of 9am and 5pm"
-
-Multiple such attestations can be added, allowing for exceptions. For example, if the cleaning service calls up and says that they can't make it on wednesday but can make it on thursday, you can add another access attestation good only for that day(and update the previous attestation to start the wednesday after)
-
-Explicit revocations of attestations are handled by a separate mechanism.
+Explicit revocations of attestations are handled by a separate
+mechanism.
 
 Individual access control points are each configured with
 
-* a list of acceptable certificate authorities
-* One or more certificates for the given access zone
-* A connection to an LDAP server for looking up attestations and revocations.
+ *  a list of acceptable certificate authorities
+ *  One or more certificates for the given access zone
+ *  A connection to an LDAP server for looking up attestations and
+    revocations.
 
-Revocations are exceptions. A revocation is necessary whenever the access capabilities of an attestation are reduced. If you are extending the expiration date of an attestation, then a revocation is not necessary. If you want to deny access for a particular person to a zone for the next week, then you will need to revoke the current attestation and issue a new attestation with a start date of a week from now. Revocations must be kept for as long as the attestation it revokes would otherwise be valid. For example, when the original attestation expires, the revocation may be discarded. This is to prevent previously revoked attestations from being reintroduced.
+Revocations are exceptions. A revocation is necessary whenever the
+access capabilities of an attestation are reduced. If you are
+extending the expiration date of an attestation, then a revocation is
+not necessary. If you want to deny access for a particular person to a
+zone for the next week, then you will need to revoke the current
+attestation and issue a new attestation with a start date of a week
+from now. Revocations must be kept for as long as the attestation it
+revokes would otherwise be valid. For example, when the original
+attestation expires, the revocation may be discarded. This is to
+prevent previously revoked attestations from being reintroduced.
 
-Access points may have more than one zone certificate. For example, there may be a backyard zone, an indoor zone, and a secure-closet zone. The indoor access point would have both the indoor certificate and the secure-closet certificate, because access to the secure closet implies indoor access. The secure-closet access point would have only the secure closet zone.
+Access points may have more than one zone certificate. For example,
+there may be a backyard zone, an indoor zone, and a secure-closet
+zone. The indoor access point would have both the indoor certificate
+and the secure-closet certificate, because access to the secure closet
+implies indoor access. The secure-closet access point would have only
+the secure closet zone.
 
-Attestations may indicate the number of factors required of the authentication method. For example, access may require just the credential or require the credential and a pin number.
+Attestations may indicate the number of factors required of the
+authentication method. For example, access may require just the
+credential or require the credential and a pin number.
 
-Credentials may be PKI-based secure-elements or HOTP/TOTP values. HOTP values may be printed out and used access.
-
+Credentials may be PKI-based secure-elements or HOTP/TOTP values. HOTP
+values may be printed out and used access.
 
 The flow looks like this:
 
-1. User presents credential
-2. Credential is verified -> DN of credential is obtained. If the credential is invalid (expired, bad signature, unknown CA), DENY ACCESS.
-3. If DN is not already in `cn=users,cd=voria,cd=net`, perform an LDAP lookup of the credential DN to see if there is an associated user DN. If so, assume that DN. If not, DENY ACCESS.
-4. Check local access attestation cache for an attestation cert. If there isn't one, do an LDAP query to see if there are any. If not, DENY ACCESS. Add attestations to a access consideration list.
-5. Verify all attestations (signature, expiration, start date, hours-of-access, etc.). Remove attestations from consideration that are not valid.
-5. Check for attestation revocations. Remove any attestations from consideration AND from the cache that are revoked. Do a quick LDAP lookup for any pending revocations.
-6. If there is at least one valid attestation in the consideration list, GRANT ACCESS. Otherwise, DENY ACCESS.
-
-
+1.  User presents credential
+2.  Credential is verified -> DN of credential is obtained. If the
+    credential is invalid (expired, bad signature, unknown CA), DENY
+    ACCESS.
+3.  If DN is not already in `cn=users,cd=voria,cd=net`, perform an
+    LDAP lookup of the credential DN to see if there is an associated
+    user DN. If so, assume that DN. If not, DENY ACCESS.
+4.  Check local access attestation cache for an attestation cert. If
+    there isn't one, do an LDAP query to see if there are any. If not,
+    DENY ACCESS. Add attestations to a access consideration list.
+5.  Verify all attestations (signature, expiration, start date,
+    hours-of-access, etc.). Remove attestations from consideration
+    that are not valid.
+6.  Check for attestation revocations. Remove any attestations from
+    consideration AND from the cache that are revoked. Do a quick LDAP
+    lookup for any pending revocations.
+7.  If there is at least one valid attestation in the consideration
+    list, GRANT ACCESS. Otherwise, DENY ACCESS.
 
 Relevant RFCs:
 
-* RFC1272: X.500 and Domains
-* RFC2253: LDAP UTF-8 String Representation of Distinguished Names
-
-
+ *  RFC1272: X.500 and Domains
+ *  RFC2253: LDAP UTF-8 String Representation of Distinguished Names
 
 ## Attestations ##
 
-An attestation is a JSON dictionary (in [canonical format](https://github.com/mirkokiefer/canonical-json)) with an appended raw signature.
+An attestation is a JSON dictionary (in [canonical
+format](https://github.com/mirkokiefer/canonical-json)) with an
+appended raw signature.
 
 The values in the dictionary are:
 
-* "type": [REQUIRED] Set to the string "attestation"
-* "version": [REQUIRED] Set to the string "1"
-* "userDN": [REQUIRED] the DN of the entity, in LDAP (RFC2253) format.
-* "zoneDN" : [REQUIRED] The DN of the zone that access is being granted to. The key which made the signature for the attestation must have a certificate for this zone.
-* "startDate": [REQUIRED] The effective start date, in ISO 8601 format.
-* "endDate": [REQUIRED] The effective end date, in ISO 8601 format.
-* "issueDate": The date that the attestation was issued, in ISO 8601 format.
-* "???": Some sort of TBD data describing hourly access attributes.
+ *  "type": [REQUIRED] Set to the string "attestation"
+ *  "version": [REQUIRED] Set to the string "1"
+ *  "userDN": [REQUIRED] the DN of the entity, in LDAP (RFC2253)
+    format.
+ *  "zoneDN" : [REQUIRED] The DN of the zone that access is being
+    granted to. The key which made the signature for the attestation
+    must have a certificate for this zone.
+ *  "startDate": [REQUIRED] The effective start date, in ISO 8601
+    format.
+ *  "endDate": [REQUIRED] The effective end date, in ISO 8601 format.
+ *  "issueDate": The date that the attestation was issued, in ISO 8601
+    format.
+ *  "???": Some sort of TBD data describing hourly access attributes.
 
 Attestations are identified by the SHA-256 hash of the JSON part only.
 
 ## Revocations ##
 
-Much like an attestation, a revocation is a JSON dictionary (in [canonical format](https://github.com/mirkokiefer/canonical-json)) with an appended raw signature.
+Much like an attestation, a revocation is a JSON dictionary (in
+[canonical format](https://github.com/mirkokiefer/canonical-json))
+with an appended raw signature.
 
 The values in the dictionary are:
 
-* "type": [REQUIRED] Set to the string "revocation"
-* "version": [REQUIRED] Set to the string "1"
-* "hash": [REQUIRED] The SHA-256 hash of the JSON-part of the attestation (does not include signature!)
-* "zoneDN" : [REQUIRED] This must be set to the same value of the associated field in the attestation.
-* "issueDate": The date that the revocation was issued, in ISO 8601 format.
+ *  "type": [REQUIRED] Set to the string "revocation"
+ *  "version": [REQUIRED] Set to the string "1"
+ *  "hash": [REQUIRED] The SHA-256 hash of the JSON-part of the
+    attestation (does not include signature!)
+ *  "zoneDN" : [REQUIRED] This must be set to the same value of the
+    associated field in the attestation.
+ *  "issueDate": The date that the revocation was issued, in ISO 8601
+    format.
 
 Attestations are identified by the SHA-256 hash of the JSON part only.
 
 ## More notes ##
 
-JSON can be parsed in shell scripts using: http://stedolan.github.io/jq/
+JSON can be parsed in shell scripts using:
+http://stedolan.github.io/jq/
