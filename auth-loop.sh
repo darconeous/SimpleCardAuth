@@ -2,10 +2,20 @@
 
 access_denied() {
 	echo Access Denied: $AUTH_DN
+
+	# TODO: Log the incident.
+
+	# Beep three times with red LED to indicate failure
+	opensc-tool --send-apdu FF:00:40:5D:04:01:01:03:01 > /dev/null 2> /dev/null
 }
 
 access_granted() {
 	echo Access Granted: $AUTH_DN
+
+	# TODO: Open the door!
+
+	# Beep once with green LED to indicate success
+	opensc-tool --send-apdu FF:00:40:2E:04:01:01:01:01 > /dev/null 2> /dev/null
 }
 
 verify_access() {
@@ -13,9 +23,10 @@ verify_access() {
 	return 0
 }
 
+
+# Main access control loop
 while true ;
 do
-	sleep 4
 	if AUTH_DN=`./simple-card-auth.sh`
 	then if verify_access
 		then access_granted
@@ -23,4 +34,5 @@ do
 		fi
 	else access_denied
 	fi
+	sleep 4
 done
