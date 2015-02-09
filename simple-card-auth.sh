@@ -53,25 +53,30 @@ cache_lookup() {
 }
 
 die() {
+	tail -n 1 "$SERIAL_FILE" 2> "$STDERR"
 	cleanup
 	exit 1
 }
 
-#set -x
-
-
 # Get ATR
-opensc-tool -w -a 2> $STDERR > $ATR_FILE || die
+opensc-tool -w -a 2> "$STDERR" > "$ATR_FILE"
 
 # Get Serial
-opensc-tool --serial 2> $STDERR > $SERIAL_FILE || die
+opensc-tool --serial --send-apdu FFCA000000 2> $STDERR > "$SERIAL_FILE" || die
 
-# Extract the certificate
-( cache_lookup || pkcs15-tool $PKCS15_CRYPT_FLAGS -L --no-prompt --read-certificate $KEY_ID -o $CERT_FILE 2> $STDERR ) || die
+# See if the card is in the cache, and if so load it up.
+cache_lookup || {
+	# Extract the certificate
+	pkcs15-tool $PKCS15_CRYPT_FLAGS -L --no-prompt --read-certificate "$KEY_ID" -o "$CERT_FILE" > "$STDERR" 2> "$STDERR" || die
+}
 
 # Verify the certificate
 cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TMP_FILE || die
 
+# The openssl verify command is very lenient when it comes to
+# self-signed certificates. This is an obvious security hole in this
+# use case. The following check makes sure that if there is anything
+# expect perfect verification that we fail.
 [ $STRICT_CHECK = 1 ] && [ "`cat $TMP_FILE`" '!=' "stdin: OK" ] && die
 
 # Extract the public key
