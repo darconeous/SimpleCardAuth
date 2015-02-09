@@ -1,5 +1,8 @@
 # Simple PKI Physical Access Control #
 
+WARNING: The following notes are largely stream-of-consciousness, intended
+to just make sense to me. You've been warned!
+
 LDAP-based physical access control requires a sort of "cryptographic
 group". Normal LDAP user groups have no cryptographic assurances that
 the given users are actually authorized to be in that group aside from
@@ -32,7 +35,7 @@ Individual access control points are each configured with
 
  *  a list of acceptable certificate authorities
  *  One or more certificates for the given access zone
- *  A connection to an LDAP server for looking up attestations and
+ *  A server (LDAP?) for looking up attestations and
     revocations.
 
 Revocations are exceptions. A revocation is necessary whenever the
@@ -66,7 +69,7 @@ The flow looks like this:
 2.  Credential is verified -> DN of credential is obtained. If the
     credential is invalid (expired, bad signature, unknown CA), DENY
     ACCESS.
-3.  If DN is not already in `cn=users,cd=voria,cd=net`, perform an
+3.  If DN is not already in `cn=users,cd=example,cd=com`, perform an
     LDAP lookup of the credential DN to see if there is an associated
     user DN. If so, assume that DN. If not, DENY ACCESS.
 4.  Check local access attestation cache for an attestation cert. If
@@ -136,9 +139,12 @@ http://stedolan.github.io/jq/
 
 ## RPI Installation ##
 
-apt-get install libusb-dev libusb++-0.1-4c2apt-get install libccid
-apt-get install pcscd
-apt-get install libpcsclite1
+apt-get install libusb-dev libusb++-0.1-4c2
+apt-get install libccid
+
+apt-get install pcscd
+
+apt-get install libpcsclite1
 apt-get install libpcsclite-dev
 apt-get install pcsc-tools
 apt-get install libpcsc-perl
