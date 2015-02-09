@@ -19,6 +19,8 @@ RAND_FILE=/dev/urandom
 STDERR=/dev/null
 export OPENSC_CONF=`pwd`/opensc.conf
 
+#PKCS15_CRYPT_FLAGS=-vvv
+
 #STDERR=/dev/stderr
 #set -x
 
@@ -65,7 +67,7 @@ opensc-tool -w -a 2> $STDERR > $ATR_FILE || die
 opensc-tool --serial 2> $STDERR > $SERIAL_FILE || die
 
 # Extract the certificate
-( cache_lookup || pkcs15-tool --no-prompt --read-certificate $KEY_ID -o $CERT_FILE 2> $STDERR ) || die
+( cache_lookup || pkcs15-tool $PKCS15_CRYPT_FLAGS -L --no-prompt --read-certificate $KEY_ID -o $CERT_FILE 2> $STDERR ) || die
 
 # Verify the certificate
 cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TMP_FILE || die
@@ -85,10 +87,10 @@ openssl sha -sha256 -binary < "$CHAL_FILE" > "$CHALHASH_FILE" || die
 if ( openssl x509 -in cert.pem -text | grep -q -s "Signature Algorithm: ecdsa" ) ;
 then
 	# ECDSA signatures need to be converted to DER format.
-	pkcs15-crypt -s -k $KEY_ID --sha-256 -i $CHALHASH_FILE -o $SIG2_FILE 2> $STDERR || die
+	pkcs15-crypt $PKCS15_CRYPT_FLAGS -s -k $KEY_ID --sha-256 -i $CHALHASH_FILE -o $SIG2_FILE 2> $STDERR || die
 	./ecdsa-pkcs11-to-asn1 < $SIG2_FILE > $SIG_FILE || die
 else
-	pkcs15-crypt -s -k $KEY_ID --sha-256 --pkcs1 -i $CHALHASH_FILE -o $SIG_FILE 2> $STDERR || die
+	pkcs15-crypt $PKCS15_CRYPT_FLAGS -s -k $KEY_ID --sha-256 --pkcs1 -i $CHALHASH_FILE -o $SIG_FILE 2> $STDERR || die
 fi
 
 # Verify the response
