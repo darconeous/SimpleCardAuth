@@ -149,3 +149,40 @@ Relevant RFCs:
 
 * RFC1272: X.500 and Domains
 * RFC2253: LDAP UTF-8 String Representation of Distinguished Names
+
+
+
+## Attestations ##
+
+An attestation is a JSON dictionary (in [canonical format](https://github.com/mirkokiefer/canonical-json)) with an appended raw signature.
+
+The values in the dictionary are:
+
+* "type": [REQUIRED] Set to the string "attestation"
+* "version": [REQUIRED] Set to the string "1"
+* "userDN": [REQUIRED] the DN of the entity, in LDAP (RFC2253) format.
+* "zoneDN" : [REQUIRED] The DN of the zone that access is being granted to. The key which made the signature for the attestation must have a certificate for this zone.
+* "startDate": [REQUIRED] The effective start date, in ISO 8601 format.
+* "endDate": [REQUIRED] The effective end date, in ISO 8601 format.
+* "issueDate": The date that the attestation was issued, in ISO 8601 format.
+* "???": Some sort of TBD data describing hourly access attributes.
+
+Attestations are identified by the SHA-256 hash of the JSON part only.
+
+## Revocations ##
+
+Much like an attestation, a revocation is a JSON dictionary (in [canonical format](https://github.com/mirkokiefer/canonical-json)) with an appended raw signature.
+
+The values in the dictionary are:
+
+* "type": [REQUIRED] Set to the string "revocation"
+* "version": [REQUIRED] Set to the string "1"
+* "hash": [REQUIRED] The SHA-256 hash of the JSON-part of the attestation (does not include signature!)
+* "zoneDN" : [REQUIRED] This must be set to the same value of the associated field in the attestation.
+* "issueDate": The date that the revocation was issued, in ISO 8601 format.
+
+Attestations are identified by the SHA-256 hash of the JSON part only.
+
+## More notes ##
+
+JSON can be parsed in shell scripts using: http://stedolan.github.io/jq/
