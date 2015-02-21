@@ -19,10 +19,15 @@ RAND_FILE=/dev/urandom
 STDERR=/dev/null
 export OPENSC_CONF=`pwd`/opensc.conf
 
-#PKCS15_CRYPT_FLAGS=-vvv
+if [ "$DEBUG" -gt 2 ]
+then PKCS15_CRYPT_FLAGS=-vvv
+fi
 
-#STDERR=/dev/stderr
-#set -x
+if [ "$DEBUG" -gt 1 ]
+then
+	STDERR=/dev/stderr
+	set -x
+fi
 
 cleanup() {
 	rm $CHAL_FILE 2> /dev/null
@@ -67,7 +72,7 @@ opensc-tool --serial --send-apdu FFCA000000 2> $STDERR > "$SERIAL_FILE" || die
 # See if the card is in the cache, and if so load it up.
 cache_lookup || {
 	# Extract the certificate
-	pkcs15-tool $PKCS15_CRYPT_FLAGS -L --no-prompt --read-certificate "$KEY_ID" -o "$CERT_FILE" > "$STDERR" 2> "$STDERR" || die
+	pkcs15-tool $PKCS15_CRYPT_FLAGS -L --read-certificate "$KEY_ID" -o "$CERT_FILE" > "$STDERR" 2> "$STDERR" || die
 }
 
 # Verify the certificate

@@ -20,9 +20,10 @@ access_granted() {
 
 verify_access() {
 	# TODO: Look up and verify that $AUTH_DN has access to this zone!
-	return 0
+	true
 }
 
+echo Starting Auth Loop
 
 # Main access control loop
 while true ;
