@@ -1,5 +1,9 @@
 #!/bin/sh
 
+GPIO_PIN=17
+
+GPIO_PATH=/sys/class/gpio/gpio$GPIO_PIN
+
 access_denied() {
 	echo Access Denied: $AUTH_DN
 
@@ -13,9 +17,14 @@ access_granted() {
 	echo Access Granted: $AUTH_DN
 
 	# TODO: Open the door!
+	echo 0 > $GPIO_PATH/value
 
 	# Beep once with green LED to indicate success
 	opensc-tool --send-apdu FF:00:40:2E:04:01:01:01:01 > /dev/null 2> /dev/null
+
+	sleep 3
+
+	echo 1 > $GPIO_PATH/value
 }
 
 verify_access() {
@@ -23,7 +32,14 @@ verify_access() {
 	true
 }
 
+echo $GPIO_PIN > /sys/class/gpio/export
+echo out > $GPIO_PATH/direction
+echo 1 > $GPIO_PATH/value
+
 echo Starting Auth Loop
+sleep 1
+echo 0 > $GPIO_PATH/value
+
 
 # Main access control loop
 while true ;
