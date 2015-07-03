@@ -13,17 +13,17 @@ TMP_FILE=temporary.tmp
 
 CACHE_DIR=`pwd`/card-cache
 
-STRICT_CHECK=0
+STRICT_CHECK=1
 KEY_ID=4
 RAND_FILE=/dev/urandom
 STDERR=/dev/null
 export OPENSC_CONF=`pwd`/opensc.conf
 
-if [ "$DEBUG" -gt 2 ]
+if [ "0$DEBUG" -gt 2 ]
 then PKCS15_CRYPT_FLAGS=-vvv
 fi
 
-if [ "$DEBUG" -gt 1 ]
+if [ "0$DEBUG" -gt 1 ]
 then
 	STDERR=/dev/stderr
 	set -x
@@ -58,10 +58,12 @@ cache_lookup() {
 }
 
 die() {
-	tail -n 1 "$SERIAL_FILE" 2> "$STDERR"
-	cleanup
+	grep -v -e "Sending" -e "Receiv" "$SERIAL_FILE" | tail -n 1 2> "$STDERR"
+	[ "0$DEBUG" -lt 1 ] && cleanup
 	exit 1
 }
+
+cleanup
 
 # Get ATR
 opensc-tool -w -a 2> "$STDERR" > "$ATR_FILE"
