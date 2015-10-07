@@ -3,14 +3,18 @@
 GPIO_PIN=17
 GPIO_PATH=/sys/class/gpio/gpio$GPIO_PIN
 
-unlock_door() {
+cd "`dirname $0`"
+
+init_door() {
 	echo $GPIO_PIN > /sys/class/gpio/export
+}
+
+unlock_door() {
 	echo out > $GPIO_PATH/direction
 	echo 0 > $GPIO_PATH/value
 }
 
 lock_door() {
-	echo $GPIO_PIN > /sys/class/gpio/export
 	echo in > $GPIO_PATH/direction
 }
 
@@ -22,6 +26,9 @@ access_denied() {
 	# Beep three times with red LED to indicate failure
 	opensc-tool --send-apdu FF:00:40:5D:04:01:01:03:01 > /dev/null 2> /dev/null
 
+	# Disable starting beep
+	opensc-tool --send-apdu FF:00:52:00:00 > /dev/null 2> /dev/null
+
 }
 
 access_granted() {
@@ -32,6 +39,9 @@ access_granted() {
 	# Beep once with green LED to indicate success
 	opensc-tool --send-apdu FF:00:40:2E:04:01:01:01:01 > /dev/null 2> /dev/null
 
+	# Disable starting beep
+	opensc-tool --send-apdu FF:00:52:00:00 > /dev/null 2> /dev/null
+
 	sleep 4
 
 	lock_door
@@ -41,6 +51,8 @@ verify_access() {
 	# TODO: Look up and verify that $AUTH_DN has access to this zone!
 	true
 }
+
+init_door
 
 echo Starting Auth Loop
 

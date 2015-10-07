@@ -57,6 +57,12 @@ cache_lookup() {
 	fi
 }
 
+uncache_cert() {
+	cache_file="$CACHE_DIR/`cat $SERIAL_FILE | openssl sha1 | cut -d ' ' -f 2`"
+	rm -f "$cache_file"
+}
+
+
 die() {
 	grep -v -e "Sending" -e "Receiv" "$SERIAL_FILE" | tail -n 1 2> "$STDERR"
 	[ "0$DEBUG" -lt 1 ] && cleanup
@@ -66,10 +72,11 @@ die() {
 cleanup
 
 # Get ATR
-opensc-tool -w -a 2> "$STDERR" > "$ATR_FILE"
+#opensc-tool -w -a 2> "$STDERR" > "$ATR_FILE"
 
 # Get Serial
-opensc-tool --serial --send-apdu FFCA000000 2> $STDERR > "$SERIAL_FILE" || die
+opensc-tool -w --send-apdu FFCA000000 --send-apdu 00:a4:04:00:09:a0:00:00:03:08:00:00:10:00 --send-apdu 00:cb:3f:ff:05:5C:03:5f:C1:02 2> $STDERR > "$SERIAL_FILE" || die
+#opensc-tool --serial --send-apdu FFCA000000 2> $STDERR > "$SERIAL_FILE" || die
 
 # See if the card is in the cache, and if so load it up.
 cache_lookup || {
@@ -78,7 +85,10 @@ cache_lookup || {
 }
 
 # Verify the certificate
-cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TMP_FILE || die
+cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TMP_FILE || {
+	uncache_cert
+	die
+}
 
 # The openssl verify command is very lenient when it comes to
 # self-signed certificates. This is an obvious security hole in this

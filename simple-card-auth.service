@@ -1,0 +1,9 @@
+[Unit]
+Description=SimpleCardAuth
+Requires=pcscd.service
+
+[Service]
+ExecStart=/root/SimpleCardAuth/auth-loop.sh
+
+[Install]
+Also=pcscd.service
