@@ -106,7 +106,7 @@ dd if="$RAND_FILE" of="$CHAL_FILE" bs=32 count=1 2> "$STDERR" || die
 openssl sha -sha256 -binary < "$CHAL_FILE" > "$CHALHASH_FILE" || die
 
 # Calculate the response for the challenge
-if ( openssl x509 -in cert.pem -text | grep -q -s "Signature Algorithm: ecdsa" ) ;
+if ( openssl x509 -in cert.pem -text | grep -q -s "Public Key Algorithm: id-ecPublicKey" ) ;
 then
 	# ECDSA signatures need to be converted to DER format.
 	pkcs15-crypt $PKCS15_CRYPT_FLAGS -s -k $KEY_ID --sha-256 -i $CHALHASH_FILE -o $SIG2_FILE 2> $STDERR || die

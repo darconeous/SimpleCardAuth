@@ -11,6 +11,8 @@ int main(int argc, char * argv[])
 
 	pkcs11_sig_len = fread((void*)pkcs11_sig, 1, sizeof(pkcs11_sig), stdin);
 
+	//fprintf(stderr,"Raw ECDSA Signature is %d bytes, key is %d bit\n", pkcs11_sig_len, pkcs11_sig_len*4);
+
 	int nLen;
 	ECDSA_SIG * ecsig = NULL;
 	unsigned char *p = NULL;
