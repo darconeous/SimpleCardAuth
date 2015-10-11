@@ -74,6 +74,12 @@ cleanup
 # Get ATR
 #opensc-tool -w -a 2> "$STDERR" > "$ATR_FILE"
 
+# Calculate a challenge
+dd if="$RAND_FILE" of="$CHAL_FILE" bs=32 count=1 2> "$STDERR" || die
+
+# Calculate the hash of the challenge
+openssl sha -sha256 -binary < "$CHAL_FILE" > "$CHALHASH_FILE" || die
+
 # Get Serial
 opensc-tool -w --send-apdu FFCA000000 --send-apdu 00:a4:04:00:09:a0:00:00:03:08:00:00:10:00 --send-apdu 00:cb:3f:ff:05:5C:03:5f:C1:02 2> $STDERR > "$SERIAL_FILE" || die
 #opensc-tool --serial --send-apdu FFCA000000 2> $STDERR > "$SERIAL_FILE" || die
@@ -83,6 +89,16 @@ cache_lookup || {
 	# Extract the certificate
 	pkcs15-tool $PKCS15_CRYPT_FLAGS -L --read-certificate "$KEY_ID" -o "$CERT_FILE" > "$STDERR" 2> "$STDERR" || die
 }
+
+# Calculate the response for the challenge
+if ( openssl x509 -in cert.pem -text | grep -q -s "Public Key Algorithm: id-ecPublicKey" ) ;
+then
+	# ECDSA signatures need to be converted to DER format.
+	pkcs15-crypt $PKCS15_CRYPT_FLAGS -s -k $KEY_ID --sha-256 -i $CHALHASH_FILE -o $SIG2_FILE 2> $STDERR || die
+	./ecdsa-pkcs11-to-asn1 < $SIG2_FILE > $SIG_FILE || die
+else
+	pkcs15-crypt $PKCS15_CRYPT_FLAGS -s -k $KEY_ID --sha-256 --pkcs1 -i $CHALHASH_FILE -o $SIG_FILE 2> $STDERR || die
+fi
 
 # Verify the certificate
 cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TMP_FILE || {
@@ -98,22 +114,6 @@ cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TM
 
 # Extract the public key
 openssl x509 -pubkey -noout -in $CERT_FILE > $PUB_KEY_FILE || die
-
-# Calculate a challenge
-dd if="$RAND_FILE" of="$CHAL_FILE" bs=32 count=1 2> "$STDERR" || die
-
-# Calculate the hash of the challenge
-openssl sha -sha256 -binary < "$CHAL_FILE" > "$CHALHASH_FILE" || die
-
-# Calculate the response for the challenge
-if ( openssl x509 -in cert.pem -text | grep -q -s "Public Key Algorithm: id-ecPublicKey" ) ;
-then
-	# ECDSA signatures need to be converted to DER format.
-	pkcs15-crypt $PKCS15_CRYPT_FLAGS -s -k $KEY_ID --sha-256 -i $CHALHASH_FILE -o $SIG2_FILE 2> $STDERR || die
-	./ecdsa-pkcs11-to-asn1 < $SIG2_FILE > $SIG_FILE || die
-else
-	pkcs15-crypt $PKCS15_CRYPT_FLAGS -s -k $KEY_ID --sha-256 --pkcs1 -i $CHALHASH_FILE -o $SIG_FILE 2> $STDERR || die
-fi
 
 # Verify the response
 openssl dgst -sha256 -verify $PUB_KEY_FILE -signature $SIG_FILE $CHAL_FILE 2>&1 > $STDERR || die

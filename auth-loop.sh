@@ -1,21 +1,38 @@
 #!/bin/sh
 
-GPIO_PIN=17
-GPIO_PATH=/sys/class/gpio/gpio$GPIO_PIN
+GPIO_STRIKE_PIN=17
+GPIO_STRIKE_PATH=/sys/class/gpio/gpio$GPIO_STRIKE_PIN
+
+GPIO_DB_OPEN_PIN=27
+GPIO_DB_OPEN_PATH=/sys/class/gpio/gpio$GPIO_DB_OPEN_PIN
+
+GPIO_DB_CLOSE_PIN=22
+GPIO_DB_CLOSE_PATH=/sys/class/gpio/gpio$GPIO_DB_CLOSE_PIN
 
 cd "`dirname $0`"
 
 init_door() {
-	echo $GPIO_PIN > /sys/class/gpio/export
+	echo $GPIO_STRIKE_PIN > /sys/class/gpio/export
+	echo $GPIO_DB_OPEN_PIN > /sys/class/gpio/export
+	echo in > $GPIO_DB_OPEN_PATH/direction
+	echo $GPIO_DB_CLOSE_PIN > /sys/class/gpio/export
+	echo in > $GPIO_DB_CLOSE_PATH/direction
 }
 
 unlock_door() {
-	echo out > $GPIO_PATH/direction
-	echo 0 > $GPIO_PATH/value
+	echo out > $GPIO_STRIKE_PATH/direction
+	echo 0 > $GPIO_STRIKE_PATH/value
+
+	(
+		echo out > $GPIO_DB_OPEN_PATH/direction
+		echo 1 > $GPIO_DB_OPEN_PATH/value
+		sleep 1
+		echo in > $GPIO_DB_OPEN_PATH/direction
+	) &
 }
 
 lock_door() {
-	echo in > $GPIO_PATH/direction
+	echo in > $GPIO_STRIKE_PATH/direction
 }
 
 access_denied() {
@@ -23,12 +40,12 @@ access_denied() {
 
 	# TODO: Log the incident.
 
-	# Beep three times with red LED to indicate failure
-	opensc-tool --send-apdu FF:00:40:5D:04:01:01:03:01 > /dev/null 2> /dev/null
-
 	# Disable starting beep
 	opensc-tool --send-apdu FF:00:52:00:00 > /dev/null 2> /dev/null
 
+	# Beep three times with red LED to indicate failure
+	# opensc-tool --send-apdu FF:00:40:5D:04:01:01:03:01 > /dev/null 2> /dev/null
+	# sleep 1
 }
 
 access_granted() {
@@ -67,5 +84,4 @@ do
 		fi
 	else access_denied
 	fi
-	sleep 3
 done
