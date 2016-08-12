@@ -139,15 +139,15 @@ http://stedolan.github.io/jq/
 
 ## RPI Installation ##
 
-apt-get install libusb-dev libusb++-0.1-4c2
-apt-get install libccid
+sudo apt-get install libusb-dev libusb++-0.1-4c2
+sudo apt-get install libccid
 
-apt-get install pcscd
+sudo apt-get install pcscd
 
-apt-get install libpcsclite1
-apt-get install libpcsclite-dev
-apt-get install pcsc-tools
-apt-get install libpcsc-perl
+sudo apt-get install libpcsclite1
+sudo apt-get install libpcsclite-dev
+sudo apt-get install pcsc-tools
+sudo apt-get install libpcsc-perl
 
 sudo modprobe -r pn533
 sudo modprobe -r nfc
