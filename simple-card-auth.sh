@@ -65,9 +65,69 @@ uncache_cert() {
 
 die() {
 	grep -v -e "Sending" -e "Receiv" "$SERIAL_FILE" | tail -n 1 2> "$STDERR"
+	#log the failed AccessAttempt
+	#echo logging
+	logToDB 0
 	[ "0$DEBUG" -lt 1 ] && cleanup
+
+	#AntiBruteforce-Timelock
+	#If 3 times within 30 seconds a AuthenticationFailure is recognized, the Authentication will be locked for 30 seconds.
+	#For performance reasons the FailureTimestamps.txt is used instead of logDB.sqlite
+	#Save NewestFailureTimestamp at the End of the file
+	echo $(date +%s) >> FailureTimestamps.txt
+	if [ $(wc -l <FailureTimestamps.txt) -ge 3 ]
+	#Remove OldestFailureTimestamp if more than 3 Timestamps are saved
+	then echo "$(tail -3 FailureTimestamps.txt)" > FailureTimestamps.txt
+		if [ $(($(tail -1 FailureTimestamps.txt)-$(head -1 FailureTimestamps.txt))) -lt 30 ] 
+			then sleep 30s
+		fi
+	fi
+	echo died
 	exit 1
 }
+
+#logToDB logs Information about Identity contained in the certificte into the database. So one is able to reconstruct who got when Access. 
+logToDB() {
+	#walk through multilined subject (line by line) and extract Identity-values
+	LINE_NR="0"
+	if [ -e $CERT_FILE ]; then
+		while true
+		do	
+			LINE_NR=$(($LINE_NR+1))
+			#'subject=' means one has reached the first line (the loop is starting at the most bottom line)
+			if [ $(printf $(openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1)) = 'subject=' 1> /dev/null ]; then break
+			else	
+				if openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | grep "emailAddress=" 1> /dev/null; then
+					EMAIL=$(openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | sed 's/\.*emailAddress=//')
+				elif openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | grep "commonName=" 1> /dev/null; then
+					COMMONNAME=$(openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | sed 's/\.*commonName=//') 1> /dev/null
+				elif openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | grep "organizationalUnitName=" 1> /dev/null; then
+					ORGANIZATIONALUNITNAME=$(openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | sed 's/\.*organizationalUnitName=//')
+				elif openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | grep "organizationName=" 1> /dev/null; then
+					ORGANIZATIONNAME=$(openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | sed 's/\.*organizationName=//')
+				elif openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | grep "localityName=" 1> /dev/null; then
+					LOCALITYNAME=$(openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | sed 's/\.*localityName=//')
+				elif openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | grep "stateOrProvinceName=" 1> /dev/null; then
+					STATEORPROVINCENAME=$(openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | sed 's/\.*stateOrProvinceName=//')
+				elif openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | grep "countryName=" 1> /dev/null; then
+					COUNTRYNAME=$(openssl x509 -in $CERT_FILE -noout -subject -nameopt sep_multiline,lname | tail -$LINE_NR | head -1 | sed 's/\.*countryName=//')
+				fi 
+			fi
+		done
+	fi
+	
+	#look wether Identity tried to get Access somewhere in the past
+	IDofExistingIdentity=$(sqlite3 ./logDB.sqlite "Select ID from Identity WHERE email='$EMAIL' AND CommonName='$COMMONNAME' AND OrganizationalUnitName='$ORGANIZATIONALUNITNAME' AND OrganizationName='$ORGANIZATIONNAME' AND LocalityName='$LOCALITYNAME' AND StateOrProvinceName ='$STATEORPROVINCENAME' AND CountryName='$COUNTRYNAME'")
+	#if Identity hasn´t tried to get Access in the past, insert it and look up the ID under which it was inserted
+	if (test -z $IDofExistingIdentity)
+	then sqlite3 ./logDB.sqlite "Insert INTO Identity (email, CommonName, OrganizationalUnitName, OrganizationName, LocalityName, StateOrProvinceName, CountryName) VALUES ('$EMAIL', '$COMMONNAME', '$ORGANIZATIONALUNITNAME', '$ORGANIZATIONNAME', '$LOCALITYNAME', '$STATEORPROVINCENAME', '$COUNTRYNAME');"
+	IDofExistingIdentity=$(sqlite3 ./logDB.sqlite "Select ID from Identity WHERE email='$EMAIL' AND CommonName='$COMMONNAME' AND OrganizationalUnitName='$ORGANIZATIONALUNITNAME' AND OrganizationName='$ORGANIZATIONNAME' AND LocalityName='$LOCALITYNAME' AND StateOrProvinceName ='$STATEORPROVINCENAME' AND CountryName='$COUNTRYNAME'")
+	fi
+	#Actual Logging into database
+	sqlite3 ./logDB.sqlite "Insert INTO AccessAttempt (Identity_ID, timestamp, success)  VALUES ('$IDofExistingIdentity', CURRENT_TIMESTAMP, '$1');";
+}
+
+
 
 cleanup
 
@@ -101,7 +161,7 @@ else
 fi
 
 # Verify the certificate
-cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TMP_FILE || {
+cat $CERT_FILE | openssl verify -crl_check -CAfile ca.crt -verbose -purpose sslclient > $TMP_FILE || {
 	uncache_cert
 	die
 }
@@ -109,7 +169,7 @@ cat $CERT_FILE | openssl verify -CAfile ca.crt -verbose -purpose sslclient > $TM
 # The openssl verify command is very lenient when it comes to
 # self-signed certificates. This is an obvious security hole in this
 # use case. The following check makes sure that if there is anything
-# expect perfect verification that we fail.
+# except perfect verification that we fail.
 [ $STRICT_CHECK = 1 ] && [ "`cat $TMP_FILE`" '!=' "stdin: OK" ] && die
 
 # Extract the public key
@@ -121,8 +181,12 @@ openssl dgst -sha256 -verify $PUB_KEY_FILE -signature $SIG_FILE $CHAL_FILE 2>&1 
 # Print out the subject name
 openssl x509 -in $CERT_FILE -nameopt RFC2253 -noout -subject | sed 's:^[^ ]* ::' |  tee $SUBJECT_DN_FILE || die
 
-# Stuff was successful, so cache the cert so we don't have to read it again.
+#log the successfull AccessAttempt
+logToDB 1
+
+# Authentification was successful, so cache the cert so we don't have to read it again.
 cache_cert
 
 cleanup
+echo successfull
 exit 0
